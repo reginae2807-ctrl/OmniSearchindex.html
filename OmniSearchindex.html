@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniSearch | Buscador y Exportación CSV</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #f8fafc; color: #1e293b; margin: 0; padding: 15px; }
+        .container { max-width: 780px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.07); }
+        h2 { color: #0f766e; margin-top: 0; }
+        .add-bar { display: grid; grid-template-columns: 1fr 2fr 1.5fr 1fr auto; gap: 8px; margin-bottom: 15px; }
+        @media (max-width: 650px) { .add-bar { grid-template-columns: 1fr; } }
+        input { padding: 8px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 13px; width: 100%; box-sizing: border-box; }
+        button { padding: 8px 14px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; color: #fff; font-size: 13px; }
+        .btn-add { background: #0f766e; }
+        .btn-csv { background: #15803d; }
+        .search-panel { background: #f0fdfa; border: 1px solid #99f6e4; padding: 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .search-panel input { flex: 1; min-width: 220px; border-color: #0d9488; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; }
+        th { background: #0f766e; color: white; }
+        tr:nth-child(even) { background: #f8fafc; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>🔎 OmniSearch: Consultas Instantáneas y Respaldo CSV</h2>
+
+    <!-- ALTA RÁPIDA DE REGISTROS -->
+    <div class="add-bar">
+        <input type="text" id="folio" placeholder="Folio (ACT-01)">
+        <input type="text" id="equipo" placeholder="Equipo / Recurso">
+        <input type="text" id="area" placeholder="Área / Laboratorio">
+        <input type="text" id="estado" placeholder="Estado (Activo)">
+        <button class="btn-add" onclick="agregarRegistro()">+ Alta</button>
+    </div>
+
+    <!-- BUSCADOR EN TIEMPO REAL (KEYUP) Y EXPORTACIÓN -->
+    <div class="search-panel">
+        <input type="text" id="txtBuscar" onkeyup="filtrarTabla()" placeholder="⚡ Escribe para buscar por folio, equipo, área o estado...">
+        <span style="font-size:12px; font-weight:bold;">Resultados: <span id="contador">0</span></span>
+        <button class="btn-csv" onclick="exportarCSV()">📥 Descargar CSV</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>Folio</th><th>Equipo / Recurso</th><th>Área</th><th>Estado</th><th>Acción</th></tr>
+        </thead>
+        <tbody id="tablaDatos"></tbody>
+    </table>
+</div>
+
+<script>
+    // Datos iniciales de ejemplo si está vacío
+    if (!localStorage.getItem("omnisearch_502")) {
+        const base = [
+            { folio: "ACT-101", equipo: "Switch Cisco 24P", area: "Laboratorio CC2", estado: "Operativo" },
+            { folio: "ACT-102", equipo: "Proyector Epson X41", area: "Aula 8", estado: "Operativo" },
+            { folio: "ACT-103", equipo: "PC Dell Optiplex i3", area: "Laboratorio CC2", estado: "Mantenimiento" },
+            { folio: "ACT-104", equipo: "Router Mikrotik RB", area: "Site Principal", estado: "Operativo" }
+        ];
+        localStorage.setItem("omnisearch_502", JSON.stringify(base));
+    }
+
+    let resultadosActuales = [];
+
+    function getRegistros() { return JSON.parse(localStorage.getItem("omnisearch_502")) || []; }
+    function setRegistros(d) { localStorage.setItem("omnisearch_502", JSON.stringify(d)); }
+
+    function agregarRegistro() {
+        const folio = document.getElementById("folio").value.trim().toUpperCase();
+        const equipo = document.getElementById("equipo").value.trim();
+        const area = document.getElementById("area").value.trim();
+        const estado = document.getElementById("estado").value.trim();
+
+        if (!folio || !equipo || !area || !estado) { alert("Completa todos los campos."); return; }
+
+        const lista = getRegistros();
+        lista.push({ folio, equipo, area, estado });
+        setRegistros(lista);
+
+        document.getElementById("folio").value = "";
+        document.getElementById("equipo").value = "";
+        document.getElementById("area").value = "";
+        document.getElementById("estado").value = "";
+        filtrarTabla();
+    }
+
+    function eliminarRegistro(folio) {
+        setRegistros(getRegistros().filter(r => r.folio !== folio));
+        filtrarTabla();
+    }
+
+    function filtrarTabla() {
+        const q = document.getElementById("txtBuscar").value.toLowerCase();
+        const todos = getRegistros();
+
+        resultadosActuales = todos.filter(item =>
+            item.folio.toLowerCase().includes(q) ||
+            item.equipo.toLowerCase().includes(q) ||
+            item.area.toLowerCase().includes(q) ||
+            item.estado.toLowerCase().includes(q)
+        );
+
+        const tbody = document.getElementById("tablaDatos");
+        tbody.innerHTML = "";
+
+        resultadosActuales.forEach(r => {
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>${r.folio}</strong></td>
+                    <td>${r.equipo}</td>
+                    <td>${r.area}</td>
+                    <td>${r.estado}</td>
+                    <td><button onclick="eliminarRegistro('${r.folio}')" style="background:#dc2626; padding:4px 8px; font-size:11px;">X</button></td>
+                </tr>`;
+        });
+        document.getElementById("contador").innerText = resultadosActuales.length;
+    }
+
+    function exportarCSV() {
+        if (resultadosActuales.length === 0) { alert("No hay datos visibles para exportar."); return; }
+
+        let csv = "Folio,Equipo,Area,Estado\n";
+        resultadosActuales.forEach(r => {
+            csv += `"${r.folio}","${r.equipo}","${r.area}","${r.estado}"\n`;
+        });
+
+        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+        const enlace = document.createElement("a");
+        enlace.href = URL.createObjectURL(blob);
+        enlace.download = "respaldo_omnisearch_502.csv";
+        enlace.click();
+    }
+
+    filtrarTabla();
+</script>
+</body>
+</html>
